@@ -10,8 +10,8 @@ venv/
 env/
 
 # Data / weights / outputs
-data/
-weights/
+/data/
+/weights/
 *.pt
 *.pth
 *.onnx
