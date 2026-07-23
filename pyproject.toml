@@ -18,6 +18,7 @@ models = [
 ]
 serve = ["fastapi>=0.111", "uvicorn>=0.30", "python-multipart>=0.0.9"]
 gpu = ["modal>=0.64"]
+data = ["kagglehub>=0.3"]
 dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [project.scripts]

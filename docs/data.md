@@ -1,5 +1,19 @@
 # Datasets
 
+## Quick download (free sets)
+
+RWF-2000 (fights) and D-Fire (fire/smoke) pull + reorganize automatically via
+kagglehub (needs Kaggle creds + accepted dataset terms):
+
+```bash
+pip install -e ".[data]"
+PYTHONPATH=src python scripts/download_data.py rwf     # -> data/action/{train,val}/{fight,normal}
+PYTHONPATH=src python scripts/download_data.py dfire   # -> data/yolo + data.yaml
+```
+
+RWF-2000 is research-only (no commercial use / redistribution without SMIIP Lab
+approval). Fall (URFD/le2i), loiter, weapon, and UCF-Crime sets are staged manually.
+
 ## Action clips (X3D head)
 
 Layout: `data/action/<split>/<label>/*.mp4`, split ∈ {train,val,test},
