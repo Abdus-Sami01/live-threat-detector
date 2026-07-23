@@ -136,3 +136,24 @@ def train_x3d(manifest: str = "/vol/manifests/action.jsonl", epochs: int = 8,
     result = {"val_acc": acc, "ckpt": ckpt}
     print(result)
     return result
+
+
+@app.function(image=image, gpu=GPU, volumes={"/vol": vol}, timeout=10800)
+def train_yolo(data_yaml: str = "/vol/yolo/data.yaml", epochs: int = 50,
+               out: str = "/vol/weights", base: str = "yolov8n.pt"):
+    """Fine-tune YOLOv8 on the threat vocabulary, copy best.pt to the Volume."""
+    import os
+    import shutil
+
+    from ultralytics import YOLO
+
+    model = YOLO(base)
+    res = model.train(data=data_yaml, epochs=epochs, imgsz=640, device=0)
+    best = f"{res.save_dir}/weights/best.pt"
+    os.makedirs(out, exist_ok=True)
+    dst = f"{out}/yolo_threat.pt"
+    shutil.copy(best, dst)
+    vol.commit()
+    result = {"weights": dst, "save_dir": str(res.save_dir)}
+    print(result)
+    return result
