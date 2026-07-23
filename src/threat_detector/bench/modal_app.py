@@ -55,26 +55,45 @@ def bench(clips: int = 100):
     return result
 
 
-@app.function(image=image, gpu=GPU, volumes={"/vol": vol}, timeout=3600)
-def eval_ucf(data: str = "/vol/ucf_crime", budget_per_hour: float = 1.0):
-    """False-alarm-rate calibration on UCF-Crime normal/anomaly splits."""
-    import numpy as np
+@app.function(image=image, gpu=GPU, volumes={"/vol": vol}, timeout=7200)
+def eval_ucf(data: str = "/vol/ucf_crime", budget_per_hour: float = 1.0,
+             fps: float = 25.0):
+    """Score UCF-Crime splits with the fine-tuned pipeline, calibrate FA/hour."""
+    import glob
+    import json
+    import os
 
-    from threat_detector.calib.alarm_budget import calibrate
+    import torch
 
-    # placeholder wiring: scores produced by scoring the split with the pipeline.
-    # replace the two arrays with real per-window max-threat scores.
-    normal_scores = np.load(f"{data}/normal_scores.npy")
-    anomaly_scores = np.load(f"{data}/anomaly_scores.npy")
-    normal_hours = float(len(normal_scores)) / (25.0 * 3600)
-    op = calibrate(normal_scores, normal_hours, anomaly_scores, budget_per_hour)
-    result = {
-        "threshold": op.threshold,
-        "false_alarms_per_hour": op.false_alarms_per_hour,
-        "recall_at_budget": op.recall,
-    }
-    print(result)
-    return result
+    from threat_detector.action.x3d_branch import X3DConfig, X3DRecognizer
+    from threat_detector.detection.yolo_branch import YoloConfig, YoloDetector
+    from threat_detector.core.frames import VideoFileSource
+    from threat_detector.core.pipeline import Pipeline
+    from threat_detector.eval.scorer import score_split
+    from threat_detector.eval.report import build_report
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+
+    def run_dir(subdir):
+        events_all = []
+        for path in sorted(glob.glob(f"{data}/{subdir}/*.mp4")):
+            src = VideoFileSource(path)
+            det = YoloDetector(YoloConfig(weights="/vol/weights/yolo_threat.pt", device=dev))
+            rec = X3DRecognizer(X3DConfig(device=dev, checkpoint="/vol/weights/x3d_head.pth"))
+            events_all.append(Pipeline(det, rec, fps=src.fps).run(src))
+        return events_all
+
+    normal = score_split(run_dir("normal"))
+    anomaly = score_split(run_dir("anomaly"))
+    normal_hours = float(normal.size) / (fps * 3600)
+    report = build_report(normal, anomaly, normal_hours, budget_per_hour)
+
+    os.makedirs("/vol/reports", exist_ok=True)
+    with open("/vol/reports/ucf_crime.json", "w", encoding="utf-8") as f:
+        json.dump(report, f, indent=2)
+    vol.commit()
+    print(report)
+    return report
 
 
 @app.function(image=image, gpu=GPU, volumes={"/vol": vol}, timeout=7200)
