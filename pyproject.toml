@@ -1,0 +1,37 @@
+[project]
+name = "threat-detector"
+version = "0.1.0"
+description = "Cascaded, evidence-fused, alarm-budget-calibrated temporal threat detection"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python>=4.9",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+models = [
+    "torch>=2.2",
+    "torchvision>=0.17",
+    "ultralytics>=8.2",
+    "pytorchvideo>=0.1.5",
+]
+serve = ["fastapi>=0.111", "uvicorn>=0.30", "python-multipart>=0.0.9"]
+gpu = ["modal>=0.64"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
+
+[project.scripts]
+threat-detect = "threat_detector.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

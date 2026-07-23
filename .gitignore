@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+
+# Data / weights / outputs
+data/
+weights/
+*.pt
+*.pth
+*.onnx
+*.engine
+outputs/
+runs/
+*.mp4
+*.avi
+!assets/*.mp4
+
+# Modal / caches
+.modal/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
