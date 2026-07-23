@@ -75,3 +75,64 @@ def eval_ucf(data: str = "/vol/ucf_crime", budget_per_hour: float = 1.0):
     }
     print(result)
     return result
+
+
+@app.function(image=image, gpu=GPU, volumes={"/vol": vol}, timeout=7200)
+def train_x3d(manifest: str = "/vol/manifests/action.jsonl", epochs: int = 8,
+              out: str = "/vol/weights"):
+    """Freeze the X3D-M backbone, fine-tune the 4-class head, save to the Volume."""
+    import os
+
+    import numpy as np
+    import torch
+    from pytorchvideo.models.hub import x3d_m
+
+    from threat_detector.data.manifest import load_manifest
+    from threat_detector.data.clip_sampler import sample_clip
+    from threat_detector.bench.train_helpers import build_head_dataset
+    from threat_detector.fusion.bayes_fuser import ACTIONS
+
+    dev = "cuda" if torch.cuda.is_available() else "cpu"
+    model = x3d_m(pretrained=True)
+    for p in model.parameters():
+        p.requires_grad = False
+    model.blocks[-1].proj = torch.nn.Linear(model.blocks[-1].proj.in_features, len(ACTIONS))
+    model.to(dev).train()
+
+    entries = load_manifest(manifest)
+    train = build_head_dataset(entries, "train")
+    val = build_head_dataset(entries, "val")
+    mean = torch.tensor([0.45, 0.45, 0.45]).view(3, 1, 1, 1).to(dev)
+    std = torch.tensor([0.225, 0.225, 0.225]).view(3, 1, 1, 1).to(dev)
+
+    def to_tensor(path):
+        clip = sample_clip(path)[..., ::-1].copy()
+        x = torch.from_numpy(clip).float().to(dev) / 255.0
+        x = x.permute(3, 0, 1, 2)
+        return ((x - mean) / std).unsqueeze(0)
+
+    opt = torch.optim.Adam(model.blocks[-1].proj.parameters(), lr=1e-3)
+    loss_fn = torch.nn.CrossEntropyLoss()
+    for _ in range(epochs):
+        np.random.shuffle(train)
+        for path, label in train:
+            opt.zero_grad()
+            logits = model(to_tensor(path))
+            loss = loss_fn(logits, torch.tensor([label], device=dev))
+            loss.backward()
+            opt.step()
+
+    model.eval()
+    correct = 0
+    with torch.no_grad():
+        for path, label in val:
+            correct += int(int(model(to_tensor(path))[0].argmax()) == label)
+    acc = correct / max(1, len(val))
+
+    os.makedirs(out, exist_ok=True)
+    ckpt = f"{out}/x3d_head.pth"
+    torch.save(model.state_dict(), ckpt)
+    vol.commit()
+    result = {"val_acc": acc, "ckpt": ckpt}
+    print(result)
+    return result
